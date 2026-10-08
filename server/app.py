@@ -86,6 +86,7 @@ def create_app():
     log.info("  GET    /data/name/{name}")
     log.info("  GET    /data/nombre/{name}")
     log.info("  GET    /data/{item_id}")
+    log.info("  PUT    /data/{item_id}")
     log.info("  DELETE /data/{item_id}")
 
     return app

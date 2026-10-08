@@ -44,12 +44,18 @@ class DataResource:
         self.conn = conn
 
     async def on_get(self, req, resp):
-        """GET /data — Consulta registros con límite opcional y filtro por nombre"""
+        """GET /data — Consulta registros con límite opcional y filtro por nombre, director o género"""
         try:
             name = req.get_param('name') or req.get_param('nombre')
+            director = req.get_param('director')
+            genero = req.get_param('genero')
             limit = req.get_param_as_int('limit') or 100
             if name:
-                items = model.get_records_by_name(self.conn.db, name, limit=limit)
+                items = model.get_records_by_field(self.conn.db, 'nombre', name, limit=limit)
+            elif director:
+                items = model.get_records_by_field(self.conn.db, 'director', director, limit=limit)
+            elif genero:
+                items = model.get_records_by_field(self.conn.db, 'genero', genero, limit=limit)
             else:
                 items = model.get_all_records(self.conn.db, limit=limit)
             resp.media = {'count': len(items), 'data': items}
@@ -59,12 +65,19 @@ class DataResource:
             resp.status = falcon.HTTP_500
 
     async def on_post(self, req, resp):
-        """POST /data — Inserta un documento directamente desde el JSON recibido"""
+        """POST /data — Inserta un documento (JSON objeto) o varios (JSON lista)"""
         try:
             body = await req.get_media() or {}
             if not body:
                 resp.media = {'error': "Cuerpo JSON requerido"}
                 resp.status = falcon.HTTP_400
+                return
+
+            # Si llega una lista, se insertan varias películas a la vez
+            if isinstance(body, list):
+                ids = model.insert_many_records(self.conn.db, body)
+                resp.media = {'status': 'created', 'count': len(ids), 'ids': ids}
+                resp.status = falcon.HTTP_201
                 return
 
             resultado = model.insert_record(self.conn.db, body)
@@ -95,6 +108,26 @@ class ItemResource:
             resp.media = {'status': 'success', 'item': item}
         except Exception as e:
             log.exception(f"Error al consultar registro {item_id}")
+            resp.media = {'error': str(e)}
+            resp.status = falcon.HTTP_500
+
+    async def on_put(self, req, resp, item_id):
+        """PUT /data/{item_id} — Actualiza los campos enviados de un documento"""
+        try:
+            body = await req.get_media() or {}
+            if not body:
+                resp.media = {'error': "Cuerpo JSON requerido"}
+                resp.status = falcon.HTTP_400
+                return
+
+            updated = model.update_record_by_id(self.conn.db, item_id, body)
+            if not updated:
+                resp.media = {'error': f'Registro con ID {item_id} no encontrado'}
+                resp.status = falcon.HTTP_404
+                return
+            resp.media = {'status': 'success', 'message': f'Registro {item_id} actualizado exitosamente'}
+        except Exception as e:
+            log.exception(f"Error al actualizar registro {item_id}")
             resp.media = {'error': str(e)}
             resp.status = falcon.HTTP_500
 

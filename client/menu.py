@@ -46,23 +46,88 @@ def consultar_registros():
         print(f"[ERROR] Error en petición REST: {err}")
 
 
-def insertar_registro():
-    """Realiza una petición POST para insertar un nuevo registro."""
-    url = f"{API_URL}/data"
-    print(f"\n[INFO] Insertar registro en: {url}")
+def pedir_pelicula():
+    """Pide los datos de una película y regresa un diccionario (solo campos con valor)."""
     nombre = input("Nombre: ").strip()
-    categoria = input("Categoría: ").strip()
-    valor = input("Valor: ").strip()
+    director = input("Director: ").strip()
+    genero = input("Género: ").strip()
+    anio = input("Año: ").strip()
 
-    payload = {
+    pelicula = {
         "nombre": nombre,
-        "categoria": categoria,
-        "valor": valor
+        "director": director,
+        "genero": genero,
+        "anio": anio
     }
     # Enviar solo campos con valor
-    payload = {k: v for k, v in payload.items() if v}
+    return {k: v for k, v in pelicula.items() if v}
+
+
+def insertar_registro():
+    """Realiza una petición POST para insertar una película."""
+    url = f"{API_URL}/data"
+    print(f"\n[INFO] Insertar película en: {url}")
+    payload = pedir_pelicula()
     try:
         response = requests.post(url, json=payload, timeout=10)
+        print(f"Código de estado: {response.status_code}")
+        print("Respuesta:", response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text)
+    except requests.exceptions.RequestException as err:
+        print(f"[ERROR] Error en petición REST: {err}")
+
+
+def insertar_varios():
+    """Realiza una petición POST enviando una lista de películas."""
+    url = f"{API_URL}/data"
+    print(f"\n[INFO] Insertar varias películas en: {url}")
+    cuantas = input("¿Cuántas películas quieres insertar? ").strip()
+    if not cuantas.isdigit() or int(cuantas) == 0:
+        print("[AVISO] Escribe un número mayor a 0.")
+        return
+
+    payload = []
+    for i in range(int(cuantas)):
+        print(f"\nPelícula {i + 1}:")
+        payload.append(pedir_pelicula())
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        print(f"Código de estado: {response.status_code}")
+        print("Respuesta:", response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text)
+    except requests.exceptions.RequestException as err:
+        print(f"[ERROR] Error en petición REST: {err}")
+
+
+def consultar_por_campo(campo):
+    """Realiza una petición GET filtrando por un campo (nombre, director o genero)."""
+    valor = input(f"Valor de '{campo}' a buscar: ").strip()
+    if not valor:
+        print("[AVISO] El valor no puede estar vacío.")
+        return
+    url = f"{API_URL}/data"
+    print(f"\n[INFO] Consultando películas en: {url}?{campo}={valor}")
+    try:
+        response = requests.get(url, params={campo: valor}, timeout=10)
+        print(f"Código de estado: {response.status_code}")
+        print("Respuesta:", response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text)
+    except requests.exceptions.RequestException as err:
+        print(f"[ERROR] Error en petición REST: {err}")
+
+
+def actualizar_por_id():
+    """Realiza una petición PUT para actualizar una película."""
+    item_id = input("ID de la película a actualizar: ").strip()
+    if not item_id:
+        print("[AVISO] El ID no puede estar vacío.")
+        return
+    print("Escribe los nuevos datos (deja vacío lo que no quieras cambiar):")
+    payload = pedir_pelicula()
+    if not payload:
+        print("[AVISO] No escribiste ningún dato para actualizar.")
+        return
+    url = f"{API_URL}/data/{item_id}"
+    print(f"\n[INFO] Actualizando película en: {url}")
+    try:
+        response = requests.put(url, json=payload, timeout=10)
         print(f"Código de estado: {response.status_code}")
         print("Respuesta:", response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text)
     except requests.exceptions.RequestException as err:
@@ -125,11 +190,15 @@ def mostrar_menu():
     print(f" Servidor objetivo: {API_URL}")
     print("-" * 45)
     print(" 1. IGNORAR LAB 02 | Inicializar base de datos / índices (POST /setup)")
-    print(" 2. Consultar registros (GET /data)")
-    print(" 3. Insertar un nuevo registro (POST /data)")
-    print(" 4. Consultar un registro por ID (GET /data/{id})")
-    print(" 5. Eliminar un registro por ID (DELETE /data/{id})")
-    print(" 6. Consultar un registro por nombre (GET /data/name/{name})")
+    print(" 2. Consultar todas las películas (GET /data)")
+    print(" 3. Insertar una película (POST /data)")
+    print(" 4. Consultar una película por ID (GET /data/{id})")
+    print(" 5. Eliminar una película por ID (DELETE /data/{id})")
+    print(" 6. Consultar películas por nombre (GET /data?nombre=)")
+    print(" 7. Consultar películas por director (GET /data?director=)")
+    print(" 8. Consultar películas por género (GET /data?genero=)")
+    print(" 9. Insertar varias películas (POST /data con lista)")
+    print("10. Actualizar una película por ID (PUT /data/{id})")
     print(" 0. Salir")
     print("=" * 45)
 
@@ -137,7 +206,7 @@ def mostrar_menu():
 def main():
     while True:
         mostrar_menu()
-        opcion = input("Selecciona una opción [0-6]: ").strip()
+        opcion = input("Selecciona una opción [0-10]: ").strip()
 
         if opcion == '1':
             inicializar_bd()
@@ -150,12 +219,20 @@ def main():
         elif opcion == '5':
             eliminar_por_id()
         elif opcion == '6':
-            consultar_por_nombre()
+            consultar_por_campo('nombre')
+        elif opcion == '7':
+            consultar_por_campo('director')
+        elif opcion == '8':
+            consultar_por_campo('genero')
+        elif opcion == '9':
+            insertar_varios()
+        elif opcion == '10':
+            actualizar_por_id()
         elif opcion == '0':
             print("\nSaliendo del programa. ¡Hasta luego!")
             sys.exit(0)
         else:
-            print("\n[AVISO] Opción no válida. Por favor, ingresa un número del 0 al 6.")
+            print("\n[AVISO] Opción no válida. Por favor, ingresa un número del 0 al 10.")
 
 
 if __name__ == '__main__':

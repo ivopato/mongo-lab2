@@ -68,7 +68,7 @@ class MongoConnection:
 # Definición de Colecciones e Índices (Personalizable para tu modelo)
 # ---------------------------------------------------------------------------
 
-DEFAULT_COLLECTION = 'sample_items'
+DEFAULT_COLLECTION = 'peliculas'
 
 # # Lista de configuraciones de índices de ejemplo: (colección, campos_o_clave, opciones)
 # ALL_INDEXES = [
@@ -179,3 +179,48 @@ def delete_record_by_id(db, item_id: str, collection_name=None):
 
     result = coll.delete_one(query)
     return result.deleted_count > 0
+
+
+# ---------------------------------------------------------------------------
+# Películas
+# ---------------------------------------------------------------------------
+
+def insert_many_records(db, data_list: list, collection_name=None):
+    """Inserta varios documentos a la vez. Retorna la lista de IDs creados."""
+    target = collection_name or DEFAULT_COLLECTION
+    coll = db[target]
+    result = coll.insert_many([dict(d) for d in data_list])
+    return [str(i) for i in result.inserted_ids]
+
+
+def get_records_by_field(db, field: str, value: str, collection_name=None, limit=100):
+    """
+    Consulta documentos por un campo (ej. 'director' o 'genero').
+    Usa $regex con la opción 'i' para que encuentre aunque sea solo parte
+    del texto y sin importar mayúsculas/minúsculas.
+    """
+    target = collection_name or DEFAULT_COLLECTION
+    coll = db[target]
+
+    query = {field: {'$regex': value, '$options': 'i'}}
+    cursor = coll.find(query).limit(limit)
+    items = []
+    for doc in cursor:
+        doc['_id'] = str(doc['_id'])
+        items.append(doc)
+    return items
+
+
+def update_record_by_id(db, item_id: str, data: dict, collection_name=None):
+    """Actualiza los campos indicados de un documento usando $set."""
+    target = collection_name or DEFAULT_COLLECTION
+    coll = db[target]
+
+    query = None
+    if ObjectId.is_valid(item_id):
+        query = {'_id': ObjectId(item_id)}
+    else:
+        query = {'_id': item_id}
+
+    result = coll.update_one(query, {'$set': data})
+    return result.matched_count > 0
